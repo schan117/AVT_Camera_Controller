@@ -7,7 +7,7 @@
 Main_Controller::Main_Controller(QObject *parent) :
     QObject(parent)
 {    
-    socket = 0;
+    socket = 0;;
 
     Connect_Signals();
 
@@ -83,7 +83,7 @@ tPvErr Main_Controller::Trigger_Image(int index, long wait_time)
     error = PvCaptureWaitForFrameDone(handles[index], &frames[index], wait_time);
     if (error != ePvErrSuccess) return error;
 
-    QTest::qWait(20);
+    //QTest::qWait(20);
 
     return ePvErrSuccess;
 }
@@ -230,7 +230,38 @@ void Main_Controller::On_TCP_Received()
                 tPvErr error = Set_Camera_Uint32_Features(handles[index], "ExposureValue", value);
                 qDebug() << Generate_Date_Time() << "Set exposure for camera:" << index << "returns:" << error;
 
+                QString reply = QString("SET_EXP_OK %1#").arg(index);
+
+                socket->write(reply.toAscii().constData(), reply.size());
+
+
+
                 return;
+            }
+        }
+        if (list[0] == "GET_FRAME_SIZE")
+        {
+            qDebug() << Generate_Date_Time() << "Request frame size!";
+
+            if (list.count() == 2)
+            {
+                bool ok;
+
+                int index = list[1].toInt(&ok);
+                if (!ok) return;
+
+                tPvUint32 value;
+                tPvErr error = Get_Camera_Uint32_Features(handles[index], "PayloadSize", &value);
+                qDebug() << Generate_Date_Time() << "Get exposure for camera:" << index << "returns:" << error << "with value:" << value;
+
+
+                QString reply = QString("GET_FRAME_SIZE_OK %1 %2#").arg(index).arg(value);
+
+                socket->write(reply.toAscii().constData(), reply.size());
+
+                return;
+
+
             }
         }
 
@@ -249,14 +280,13 @@ void Main_Controller::On_TCP_Received()
                 qDebug() << Generate_Date_Time() << "Capture index:" << index << "returns:" << error;
 
                 QByteArray qba = QByteArray((const char*) frames[index].ImageBuffer, camera_properties[index].buffer_size);
-
                 socket->write(qba, camera_properties[index].buffer_size);
 
                 return;
 
             }
         }
-        if (list[0] == "GET")
+        if (list[0] == "GET_IMAGE")
         {
             qDebug() << Generate_Date_Time() << "Request get image!";
 
