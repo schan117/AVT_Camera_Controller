@@ -9,7 +9,7 @@ Main_Controller::Main_Controller(QObject *parent) :
 {    
     socket = 0;;
 
-    Connect_Signals();
+
 
     // Initialize camera
 
@@ -26,6 +26,7 @@ Main_Controller::Main_Controller(QObject *parent) :
         if (ok)
         {
             qDebug() << Generate_Date_Time() << "Start to listen at port 1234";
+            Connect_Signals();
         }
     }
     else
@@ -136,11 +137,26 @@ bool Main_Controller::Initialize_Cameras()
         qDebug() << "   ID:" << list[i].UniqueId;
     }
 
+
+
+
     // open the first camera for now
 
     for (int i=0; i<1; i++)
     {
         qDebug() << Generate_Date_Time() << "Camera Index:" << i;
+        // force only the provided camera to work with the board now
+        if (i == 0)
+        {
+            qDebug() << Generate_Date_Time() << "   Check unique id!";
+
+            if (list[i].UniqueId != 161443)
+            {
+                qDebug() << Generate_Date_Time() << "   Unique ID does not match, not starting service!";
+                return false;
+            }
+        }
+
 
         error = PvCameraOpen(list[i].UniqueId, ePvAccessMaster, &handles[i]);
         qDebug() << Generate_Date_Time() << "   Open Camera returns:" << error;
@@ -206,99 +222,128 @@ void Main_Controller::On_TCP_Received()
         command = QString(socket->read(bytes));
 
         command.remove(bytes-1, 1);
-        qDebug() << Generate_Date_Time() << "Received command:" << command;
-    }
 
-    QStringList list = command.split(QRegExp("\\s+"), QString::SkipEmptyParts);
+        QStringList commands = command.split('#');
+        qDebug() << Generate_Date_Time() << "Commands recevied:" << commands.count();
 
-    if (list.count() != 0)
-    {
-        if (list[0] == "SET_EXP")
+        for (int i=0; i<commands.count(); i++)
         {
-            qDebug() << Generate_Date_Time() << "Request exposure set!";
+            QString line = commands[i];
 
-            if (list.count() == 3)
+            qDebug() << Generate_Date_Time() << "Received command:" << line;
+
+            QStringList list = line.split(QRegExp("\\s+"), QString::SkipEmptyParts);
+
+            if (list.count() != 0)
             {
-                bool ok;
+                if (list[0] == "SET_EXP")
+                {
+                    qDebug() << Generate_Date_Time() << "Request exposure set!";
 
-                int index = list[1].toInt(&ok);
-                if (!ok) return;
+                    if (list.count() == 3)
+                    {
+                        bool ok;
 
-                int value = list[2].toInt(&ok);
-                if (!ok) return;
+                        int index = list[1].toInt(&ok);
+                        if (!ok) return;
 
-                tPvErr error = Set_Camera_Uint32_Features(handles[index], "ExposureValue", value);
-                qDebug() << Generate_Date_Time() << "Set exposure for camera:" << index << "returns:" << error;
+                        int value = list[2].toInt(&ok);
+                        if (!ok) return;
 
-                QString reply = QString("SET_EXP_OK %1#").arg(index);
+                        tPvErr error = Set_Camera_Uint32_Features(handles[index], "ExposureValue", value);
+                        qDebug() << Generate_Date_Time() << "Set exposure for camera:" << index << "returns:" << error;
 
-                socket->write(reply.toAscii().constData(), reply.size());
+                        QString reply = QString("SET_EXP_OK %1 %2#").arg(index).arg(error);
 
+                        socket->write(reply.toAscii().constData(), reply.size());
 
+                    }
+                }
+                if (list[0] == "GET_FRAME_SIZE")
+                {
+                    qDebug() << Generate_Date_Time() << "Request frame size!";
 
-                return;
-            }
-        }
-        if (list[0] == "GET_FRAME_SIZE")
-        {
-            qDebug() << Generate_Date_Time() << "Request frame size!";
+                    if (list.count() == 2)
+                    {
+                        bool ok;
 
-            if (list.count() == 2)
-            {
-                bool ok;
+                        int index = list[1].toInt(&ok);
+                        if (!ok) return;
 
-                int index = list[1].toInt(&ok);
-                if (!ok) return;
+                        tPvUint32 value;
+                        tPvErr error = Get_Camera_Uint32_Features(handles[index], "PayloadSize", &value);
+                        qDebug() << Generate_Date_Time() << "Get frame size for camera:" << index << "returns:" << error << "with value:" << value;
 
-                tPvUint32 value;
-                tPvErr error = Get_Camera_Uint32_Features(handles[index], "PayloadSize", &value);
-                qDebug() << Generate_Date_Time() << "Get exposure for camera:" << index << "returns:" << error << "with value:" << value;
+                        QString reply = QString("GET_FRAME_SIZE_OK %1 %2 %3#").arg(index).arg(value).arg(error);
 
-
-                QString reply = QString("GET_FRAME_SIZE_OK %1 %2#").arg(index).arg(value);
-
-                socket->write(reply.toAscii().constData(), reply.size());
-
-                return;
+                        socket->write(reply.toAscii().constData(), reply.size());
 
 
-            }
-        }
 
-        if (list[0] == "CAPTURE")
-        {
-            qDebug() << Generate_Date_Time() << "Request capture!";
 
-            if (list.count() == 2)
-            {
-                bool ok;
-                int index = list[1].toInt(&ok);
-                if (!ok) return;
+                    }
+                }
+                if (list[0] == "GET_IMAGE_SIZE")
+                {
+                    qDebug() << Generate_Date_Time() << "Request image size!";
 
-                tPvErr error = Trigger_Image(index, 2000);
+                    if (list.count() == 2)
+                    {
+                        bool ok;
 
-                qDebug() << Generate_Date_Time() << "Capture index:" << index << "returns:" << error;
+                        int index = list[1].toInt(&ok);
+                        if (!ok) return;
 
-                QByteArray qba = QByteArray((const char*) frames[index].ImageBuffer, camera_properties[index].buffer_size);
-                socket->write(qba, camera_properties[index].buffer_size);
+                        tPvUint32 width, height;
+                        tPvErr error = Get_Camera_Uint32_Features(handles[index], "Width", &width);
+                        error = Get_Camera_Uint32_Features(handles[index], "Height", &height);
+                        qDebug() << Generate_Date_Time() << "Get exposure for camera:" << index << "returns:" << error << "width:" << width << "height:" << height;
 
-                return;
 
-            }
-        }
-        if (list[0] == "GET_IMAGE")
-        {
-            qDebug() << Generate_Date_Time() << "Request get image!";
+                        QString reply = QString("GET_IMAGE_SIZE_OK %1 %2 %3 %4#").arg(index).arg(width).arg(height).arg(error);
 
-            if (list.count() == 2)
-            {
-                bool ok;
-                int index = list[1].toInt(&ok);
-                if (!ok) return;
+                        socket->write(reply.toAscii().constData(), reply.size());
 
-                QByteArray qba = QByteArray((const char*) frames[index].ImageBuffer, camera_properties[index].buffer_size);
+                        return;
+                    }
 
-                socket->write(qba, camera_properties[index].buffer_size);
+                }
+                if (list[0] == "CAPTURE")
+                {
+                    qDebug() << Generate_Date_Time() << "Request capture!";
+
+                    if (list.count() == 2)
+                    {
+                        bool ok;
+                        int index = list[1].toInt(&ok);
+                        if (!ok) return;
+
+                        tPvErr error = Trigger_Image(index, 2000);
+
+                        qDebug() << Generate_Date_Time() << "Capture index:" << index << "returns:" << error;
+
+                        QByteArray qba = QByteArray((const char*) frames[index].ImageBuffer, camera_properties[index].buffer_size);
+                        socket->write(qba, camera_properties[index].buffer_size);
+
+
+                    }
+                }
+                if (list[0] == "GET_IMAGE")
+                {
+                    qDebug() << Generate_Date_Time() << "Request get image!";
+
+                    if (list.count() == 2)
+                    {
+                        bool ok;
+                        int index = list[1].toInt(&ok);
+                        if (!ok) return;
+
+                        QByteArray qba = QByteArray((const char*) frames[index].ImageBuffer, camera_properties[index].buffer_size);
+
+                        socket->write(qba, camera_properties[index].buffer_size);
+
+                    }
+                }
 
             }
         }
