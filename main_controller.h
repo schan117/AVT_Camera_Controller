@@ -26,7 +26,7 @@ public:
     tPvErr Get_Camera_Uint32_Features(tPvHandle handle, QString feature, tPvUint32* value);
     tPvErr Set_Camera_Uint32_Features(tPvHandle handle, QString feature, tPvUint32 value);
     tPvErr Get_Camera_Float32_Features(tPvHandle handle, QString feature, tPvFloat32* value);
-    tPvErr Set_Camera_Float32_Features(tPvHandle handle, QString feature, tPvFloat32 value);;
+    tPvErr Set_Camera_Float32_Features(tPvHandle handle, QString feature, tPvFloat32 value);
 
     tPvErr Trigger_Image(int index, long wait_time);
 

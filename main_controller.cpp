@@ -13,7 +13,7 @@ Main_Controller::Main_Controller(QObject *parent) :
 
     // Initialize camera
 
-    bool ok = Initialize_Cameras();
+    bool ok = Initialize_Cameras();;
 
     if (ok)
     {
@@ -73,18 +73,24 @@ tPvErr Main_Controller::Set_Camera_Float32_Features(tPvHandle handle, QString fe
 
 tPvErr Main_Controller::Trigger_Image(int index, long wait_time)
 {
+    QTime t;
+
+   // t.start();
+
     tPvErr error = PvCaptureQueueFrame(handles[index], &frames[index], NULL);
-    qDebug() << Generate_Date_Time() << "   Queue frame for camera:" << index << "returns:" << error;
+  //  qDebug() << Generate_Date_Time() << "   Queue frame for camera:" << index << "returns:" << error;
     if (error != ePvErrSuccess) return error;
 
     error = PvCommandRun(handles[index], "FrameStartTriggerSoftware");
-    qDebug() << Generate_Date_Time() << "   Trigger frame returns:" << error;
+    //qDebug() << Generate_Date_Time() << "   Trigger frame returns:" << error;
     if (error != ePvErrSuccess) return error;
 
     error = PvCaptureWaitForFrameDone(handles[index], &frames[index], wait_time);
     if (error != ePvErrSuccess) return error;
 
-    //QTest::qWait(20);
+    //qDebug() << "Time elapsed in waiting for frame:" << t.elapsed();
+
+   // QTest::qWait(20);
 
     return ePvErrSuccess;
 }
@@ -146,6 +152,8 @@ bool Main_Controller::Initialize_Cameras()
     {
         qDebug() << Generate_Date_Time() << "Camera Index:" << i;
         // force only the provided camera to work with the board now
+
+        /*
         if (i == 0)
         {
             qDebug() << Generate_Date_Time() << "   Check unique id!";
@@ -156,6 +164,7 @@ bool Main_Controller::Initialize_Cameras()
                 return false;
             }
         }
+        */
 
 
         error = PvCameraOpen(list[i].UniqueId, ePvAccessMaster, &handles[i]);
@@ -189,6 +198,13 @@ bool Main_Controller::Initialize_Cameras()
         qDebug() << Generate_Date_Time() << "   Adjust packet size returns:" << error;
         if (error != ePvErrSuccess) return false;
 
+        uint sbs = 124000000;
+
+        error = PvAttrUint32Set(handles[i], "StreamBytesPerSecond", sbs);
+        qDebug() << Generate_Date_Time() << "    Adjust stream bytes per second to:" << sbs << "returns:" << error;
+        if (error != ePvErrSuccess) return false;
+
+
         error = PvAttrEnumSet(handles[i], "FrameStartTriggerMode", "Software");
         qDebug() << Generate_Date_Time() << "   Set software trigger returns" << error;
         if (error != ePvErrSuccess) return false;
@@ -200,6 +216,8 @@ bool Main_Controller::Initialize_Cameras()
         error = PvCommandRun(handles[i], "AcquisitionStart");
         qDebug() << Generate_Date_Time() << "   Acquisition start returns:" << error;
         if (error != ePvErrSuccess) return false;
+
+
     }
 
 
@@ -224,13 +242,13 @@ void Main_Controller::On_TCP_Received()
         command.remove(bytes-1, 1);
 
         QStringList commands = command.split('#');
-        qDebug() << Generate_Date_Time() << "Commands recevied:" << commands.count();
+      //  qDebug() << Generate_Date_Time() << "Commands recevied:" << commands.count();
 
         for (int i=0; i<commands.count(); i++)
         {
             QString line = commands[i];
 
-            qDebug() << Generate_Date_Time() << "Received command:" << line;
+           // qDebug() << Generate_Date_Time() << "Received command:" << line;
 
             QStringList list = line.split(QRegExp("\\s+"), QString::SkipEmptyParts);
 
@@ -310,7 +328,7 @@ void Main_Controller::On_TCP_Received()
                 }
                 if (list[0] == "CAPTURE")
                 {
-                    qDebug() << Generate_Date_Time() << "Request capture!";
+                   // qDebug() << Generate_Date_Time() << "Request capture!";
 
                     if (list.count() == 2)
                     {
@@ -320,7 +338,7 @@ void Main_Controller::On_TCP_Received()
 
                         tPvErr error = Trigger_Image(index, 2000);
 
-                        qDebug() << Generate_Date_Time() << "Capture index:" << index << "returns:" << error;
+                       // qDebug() << Generate_Date_Time() << "Capture index:" << index << "returns:" << error;
 
                         QByteArray qba = QByteArray((const char*) frames[index].ImageBuffer, camera_properties[index].buffer_size);
                         socket->write(qba, camera_properties[index].buffer_size);
