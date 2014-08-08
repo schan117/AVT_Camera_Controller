@@ -35,24 +35,29 @@ signals:
 
 public slots:
 
-    void On_New_Connection();
-    void Current_Socket_Disconnected();
-    bool Initialize_Cameras();
-    void On_TCP_Received();
-
+    void On_Control_Port_New_Connection();
+    void On_Buffer_Port_New_Connection();
+    void Current_Control_Socket_Disconnected();
+    void Current_Buffer_Socket_Disconnected();
+    void Initialize_Cameras();
+    void On_Control_Socket_TCP_Received();
 
 private:
 
-    QTcpServer server;
+    QTcpServer control_server;
+    QTcpServer buffer_server;
 
     QString Generate_Date_Time();
 
-    QTcpSocket* socket;
+    QTcpSocket* control_socket;
+    QTcpSocket* buffer_socket;
 
     tPvHandle handles[MAX_CAMERAS];
     tPvFrame  frames[MAX_CAMERAS];
 
     Camera_Properties camera_properties[MAX_CAMERAS];
+
+    bool cameras_ready[MAX_CAMERAS];
 
 };
 
